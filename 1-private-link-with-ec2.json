@@ -1,0 +1,210 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Create a PrivateLink and an EC2 via AWS CloudFormation.",
+  "Parameters": {
+    "TiDBVPCEndpointServiceName": {
+      "Description": "TiDB Cloud VPC Endpoint Service Name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    }
+  },
+  "Resources": {
+    "QuickSightVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.2.0.0/16",
+        "EnableDnsSupport": true,
+        "EnableDnsHostnames": true,
+        "InstanceTenancy": "default",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-vpc"
+          }
+        ]
+      }
+    },
+    "QuickSightSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "DependsOn": [
+        "QuickSightVPC"
+      ],
+      "Properties" : {
+        "VpcId" : { "Ref" : "QuickSightVPC" },
+        "CidrBlock" : "10.2.0.0/18",
+        "AvailabilityZone" : {
+          "Fn::Join" : ["", [{ "Ref" : "AWS::Region" }, "a"]]
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-subnet"
+          }
+        ]
+      }
+    },
+    "QuickSightPublicRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "QuickSightVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-public-route-table"
+          }
+        ]
+      }
+    },
+    "QuickSightPublicRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "QuickSightAttachGateway",
+        "QuickSightPublicRouteTable"
+      ],
+      "Properties": {
+          "DestinationCidrBlock": "0.0.0.0/0",
+          "RouteTableId": {
+              "Ref": "QuickSightPublicRouteTable"
+          },
+          "GatewayId": {
+            "Ref": "QuickSightInternetGateway"
+          }
+      }
+    },
+    "QuickSightSubnetRouteTableAssociation": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {
+            "Ref": "QuickSightPublicRouteTable"
+          },
+          "SubnetId" : {
+            "Ref": "QuickSightSubnet"
+          }
+        }
+    },
+    "QuickSightSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupDescription": "SecurityGroup for QuickSight",
+          "VpcId": {
+              "Ref": "QuickSightVPC"
+          },
+          "SecurityGroupIngress": [
+            {
+              "CidrIp" : "0.0.0.0/0",
+              "Description" : "Allow All IP to SSH",
+              "FromPort" : 0,
+              "IpProtocol" : "tcp",
+              "ToPort" : 65535
+            }
+          ],
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "quick-sight-security-group"
+            }
+          ]
+      }
+    },
+    "QuickSightVPCRouteResolverEndpoint": {
+      "Type" : "AWS::Route53Resolver::ResolverEndpoint",
+      "Properties" : {
+          "Direction" : "INBOUND",
+          "IpAddresses" : [
+            {
+            "Ip" : "10.2.1.254",
+            "SubnetId" : {"Ref": "QuickSightSubnet"}
+            },
+            {
+            "Ip" : "10.2.1.255",
+            "SubnetId" : {"Ref": "QuickSightSubnet"}
+            }
+          ],
+          "Name" : "quick-sight-vpc-route-resolver-endpoint",
+          "SecurityGroupIds" : [ {"Ref" : "QuickSightSecurityGroup"} ]
+        }
+    },
+    "QuickSightVPCEndpoint": {
+      "Type" : "AWS::EC2::VPCEndpoint",
+      "Properties" : {
+        "ServiceName" : {"Ref": "TiDBVPCEndpointServiceName"},
+        "SecurityGroupIds": [ {"Ref": "QuickSightSecurityGroup"} ],
+        "SubnetIds" : [ {"Ref": "QuickSightSubnet"} ],
+        "VpcEndpointType" : "Interface",
+        "VpcId" : {"Ref": "QuickSightVPC"}
+      }
+    },
+    "QuickSightInstence": {
+      "Type": "AWS::EC2::Instance",
+      "DependsOn": [
+        "QuickSightSecurityGroup",
+        "QuickSightSubnet",
+        "QuickSightVPCRouteResolverEndpoint"
+      ],
+      "Properties": {
+        "ImageId" : "ami-0735c191cf914754d",
+        "NetworkInterfaces": [
+          {
+            "SubnetId": {
+              "Ref": "QuickSightSubnet"
+            },
+            "AssociatePublicIpAddress": "true",
+            "DeviceIndex": "0",
+            "GroupSet": [
+              {
+                "Ref": "QuickSightSecurityGroup"
+              }
+            ]
+          }
+        ],
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-instence"
+          }
+        ]
+      }
+    },
+    "QuickSightInternetGateway" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "DependsOn": [
+        "QuickSightVPC",
+        "QuickSightSubnet"
+      ],
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-internet-gateway"
+          }
+        ]
+      }
+    },
+    "QuickSightAttachGateway" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "DependsOn": [
+        "QuickSightVPC",
+        "QuickSightSubnet",
+        "QuickSightInternetGateway"
+      ],
+      "Properties" : {
+         "VpcId" : { "Ref" : "QuickSightVPC" },
+         "InternetGatewayId" : { "Ref" : "QuickSightInternetGateway" }
+      }
+    }
+  },
+  "Outputs": {
+    "QuickSightVPCEndpointID": {
+      "Value": { "Ref": "QuickSightVPCEndpoint" }
+    },
+    "QuickSightSecurityGroupID": {
+      "Value": {"Ref": "QuickSightSecurityGroup"}
+    },
+    "QuickSightResolverEndpointID": {
+      "Value": "10.2.1.254,10.2.1.255"
+    }
+  }
+}
