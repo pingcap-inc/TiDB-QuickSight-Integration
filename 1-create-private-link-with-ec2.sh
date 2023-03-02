@@ -6,19 +6,8 @@ aws cloudformation deploy \
   --output json \
   --parameter-overrides file://./1-secret.json
 
-echo "\nIf successful, this is the VPC Endpoint ID, please paste it to the TiDB Cloud:\n"
-
-aws cloudformation describe-stacks \
-  --stack-name ${STACK_NAME} \
-  --query "Stacks[0].Outputs[?OutputKey=='QuickSightVPCEndpointID'].OutputValue|join(', ', @)" \
-  > vpc-endpoint.id
-
-cat vpc-endpoint.id
-
-echo ""
-
-echo "Those are the properties for creating Amazon QuickSight:"
-echo "Link: https://quicksight.aws.amazon.com/sn/console/vpc-connections/new"
+echo "\nThose are the properties for creating Amazon QuickSight VPC Connection."
+echo "You can use this link to create: https://quicksight.aws.amazon.com/sn/console/vpc-connections/new"
 
 security_group_id=`aws cloudformation describe-stacks \
   --stack-name ${STACK_NAME} \

@@ -7,6 +7,12 @@
       "Type": "String",
       "MinLength": "1",
       "MaxLength": "64"
+    },
+    "TiDBServerlessAvailabilityZone": {
+      "Description": "TiDB Cloud Serverless Tier Availability Zone (AZ)",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
     }
   },
   "Resources": {
@@ -33,9 +39,7 @@
       "Properties" : {
         "VpcId" : { "Ref" : "QuickSightVPC" },
         "CidrBlock" : "10.2.0.0/18",
-        "AvailabilityZone" : {
-          "Fn::Join" : ["", [{ "Ref" : "AWS::Region" }, "a"]]
-        },
+        "AvailabilityZone" : { "Ref" : "TiDBServerlessAvailabilityZone" },
         "Tags": [
           {
             "Key": "Name",
@@ -130,6 +134,7 @@
     "QuickSightVPCEndpoint": {
       "Type" : "AWS::EC2::VPCEndpoint",
       "Properties" : {
+        "PrivateDnsEnabled": true,
         "ServiceName" : {"Ref": "TiDBVPCEndpointServiceName"},
         "SecurityGroupIds": [ {"Ref": "QuickSightSecurityGroup"} ],
         "SubnetIds" : [ {"Ref": "QuickSightSubnet"} ],
@@ -197,9 +202,6 @@
     }
   },
   "Outputs": {
-    "QuickSightVPCEndpointID": {
-      "Value": { "Ref": "QuickSightVPCEndpoint" }
-    },
     "QuickSightSecurityGroupID": {
       "Value": {"Ref": "QuickSightSecurityGroup"}
     },

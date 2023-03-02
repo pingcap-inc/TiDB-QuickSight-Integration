@@ -15,10 +15,9 @@ The outline progress is:
 1. `[Terminal]` Run the first script `1-create-private-link-with-ec2.sh`. Create the VPC (with the surrounding components), EC2 Interface, VPC Endpoint, etc.
 2. `[Console]` Use the **VPC Endpoint ID** from the first step to confirm in TiDB Cloud.
 3. `[Console]` Use the **Security Group ID** and **Resolver Endpoint ID** to create the VPC connection ARN.
-4. `[Terminal]` Run the second script `2-active-vpc-endpoint.sh` to activate the **VPC Endpoint**.
-5. `[Terminal]` Run the third script `3-create-quicksight.sh` to create the **QuickSight** components.
-6. `[QuickSight]` Start analysis on Amazon QuickSight.
-7. `[Terminal]` (Optional) Run the `4-clean.sh` script to clean the environment.
+4. `[Terminal]` Run the third script `2-create-quicksight.sh` to create the **QuickSight** components.
+5. `[QuickSight]` Start analysis on Amazon QuickSight.
+6. `[Terminal]` (Optional) Run the `3-clean.sh` script to clean the environment.
 
 ## Prerequisites
 
@@ -74,7 +73,11 @@ Before you can use this project, you will need the following:
 ![Step 1](/assets/1-private-link-with-ec2-designer.png)
 
 1. Rename the `1-secret.template.json` to `1-secret.json`.
-2. Replace the `ParameterValue` of `TiDBVPCEndpointServiceName` with your TiDB Cloud vpc endpoint service name.
+2. Replace those parameters:
+
+  - `TiDBVPCEndpointServiceName`: TiDB Cloud VPC endpoint service name.
+  - `TiDBServerlessAvailabilityZone`: The Availability Zone(AZ) of TiDB Serverless Tier Cluster.
+
 3. Run the script: `1-create-private-link-with-ec2.sh`.
 
   ```bash
@@ -84,10 +87,6 @@ Before you can use this project, you will need the following:
 4. The end of the output message will look like the one below. Please remember the `VPC Endpoint ID`, `QuickSightSecurityGroupID`, and `QuickSightResolverEndpointID` to use in the next two steps:
 
   ```bash
-  If successful, this is the VPC Endpoint ID, please paste it to the TiDB Cloud:
-
-  "vpce-002271faf39889e3d"
-
   Those are the properties for creating Amazon QuickSight:
   Link: https://quicksight.aws.amazon.com/sn/console/vpc-connections/new
 
@@ -111,13 +110,7 @@ Before you can use this project, you will need the following:
 > - [AWS::EC2::InternetGateway](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-internetgateway.html)
 > - [AWS::EC2::VPCGatewayAttachment](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-resource-ec2-vpc-gateway-attachment.html)
 
-## 2. Confirm VPC Endpoint ID in TiDB Cloud
-
-> [WIP] TiDB Serverless Tier Cluster VPC PrivateLink not prepared. Use Dedicated Tier instead.
-
-Use the output param `VPC Endpoint ID` from the [first step](#1-create-the-vpc-with-all-components--privatelink--ec2) to confirm in the TiDB Cloud.
-
-## 3. Create the VPC Connection ARN
+## 2. Create the VPC Connection ARN
 
 - Go to the page to [create a VPC Connection](https://quicksight.aws.amazon.com/sn/admin#vpc-connections).
 - Click **VPC connection**.
@@ -132,19 +125,11 @@ Use the output param `VPC Endpoint ID` from the [first step](#1-create-the-vpc-w
 
   ![quicksight-vpc-connection-arn](/assets/quicksight-vpc-connection-arn.png)
 
-## 4. Active the VPC Endpoint
-
-You can activate the VPC Endpoint after the TiDB Cloud is confirmed.
-
-```bash
-./2-active-vpc-endpoint.sh
-```
-
-## 5. Create QuickSight Dataset
+## 3. Create QuickSight Dataset
 
 This step will create an Amazon QuickSight datasource via VPC connection to TiDB. And use this datasource to create a dataset which is the table `fitness_trackers` we imported.
 
-![Step 5](/assets/3-quicksight-designer.png)
+![Step 5](/assets/2-quicksight-designer.png)
 
 > **Note:**
 >
@@ -154,10 +139,10 @@ This step will create an Amazon QuickSight datasource via VPC connection to TiDB
 > - [TiDB](https://docs.pingcap.com/tidb/stable)
 > - [Amazon QuickSight](https://docs.aws.amazon.com/quicksight/latest/user/welcome.html)
 
-1. Rename the `3-secret.template.json` to `3-secret.json`.
+1. Rename the `2-secret.template.json` to `2-secret.json`.
 2. Replace those params:
 
-  - `QuickSightVPCConnectionArn`: The Arn you get in the [third step](#3-create-the-vpc-connection-arn).
+  - `QuickSightVPCConnectionArn`: The Arn you get in the [third step](#2-create-the-vpc-connection-arn).
   - `QuickSightUser`: The username of QuickSight.
 
     ![quicksight-username](/assets/quicksight-username.png)
@@ -169,23 +154,23 @@ This step will create an Amazon QuickSight datasource via VPC connection to TiDB
   - `TiDBHost`: TiDB PrivateLink host
   - `TiDBPort`: TiDB port
 
-3. Run the script: `3-create-quicksight.sh`.
+3. Run the script: `2-create-quicksight.sh`.
 
   ```bash
-  ./3-create-quicksight.sh
+  ./2-create-quicksight.sh
   ```
 
-## 6. Start analysis on Amazon QuickSight
+## 4. Start analysis on Amazon QuickSight
 
 ![quicksight-analysis](/assets/quicksight-analysis.png)
 
-## 7. (Optional) Clean
+## 5. (Optional) Clean
 
 - Delete the [VPC Connection](https://quicksight.aws.amazon.com/sn/admin#vpc-connections) in Amazon QuickSight.
 - Run the clean script:
 
   ```bash
-  ./4-clean.sh
+  ./3-clean.sh
   ```
 
 ## Noteworthy Things

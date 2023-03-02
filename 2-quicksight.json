@@ -1,0 +1,169 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "Amazon QuickSight",
+  "Parameters": {
+    "TiDBDatabase": {
+      "Description": "TiDB Cloud database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "Default": "test"
+    },
+    "TiDBUser": {
+      "NoEcho": "true",
+      "Description": "Username for TiDB Cloud database access",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "32"
+    },
+    "TiDBPassword": {
+      "NoEcho": "true",
+      "Description": "Password for TiDB Cloud database access",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    },
+    "TiDBHost": {
+      "Description": "Host URL for TiDB Cloud database access",
+      "Default": "localhost",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "256"
+    },
+    "TiDBPort": {
+      "Description": "Port for TiDB Cloud database access",
+      "Default": "4000",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "8",
+      "AllowedPattern": "[0-9]*",
+      "ConstraintDescription": "only allow numbers."
+    },
+    "QuickSightUser": {
+      "Description": "Username of Amazon QuickSight",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "256"
+    },
+    "QuickSightVPCConnectionArn": {
+      "Description": "VPC Connection ARN of Amazon QuickSight",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "256"
+    }
+  },
+  "Resources": {
+    "TiDBDataSource": {
+      "Type" : "AWS::QuickSight::DataSource",
+      "Properties" : {
+        "AwsAccountId": { "Ref" : "AWS::AccountId" },
+        "DataSourceId" : "TiDBDataSource",
+        "DataSourceParameters" : {
+          "MySqlParameters" : {
+            "Database" : { "Ref": "TiDBDatabase" },
+            "Host" : { "Ref": "TiDBHost" },
+            "Port" : { "Ref": "TiDBPort" }
+          }
+        },
+        "SslProperties": {
+          "DisableSsl" : true
+        },
+        "Name" : "TiDBDataSource",
+        "Type" : "MYSQL",
+        "VpcConnectionProperties": {
+          "VpcConnectionArn" : {"Ref":"QuickSightVPCConnectionArn"}
+        },
+        "Permissions": [
+          {
+            "Actions" : [
+              "quicksight:DescribeDataSource",
+              "quicksight:DescribeDataSourcePermissions",
+              "quicksight:PassDataSource"
+            ],
+            "Principal" : {
+              "Fn::Join" : [ "", [
+                  "arn:aws:quicksight:",
+                  { "Ref" : "AWS::Region" },
+                  ":",
+                  { "Ref" : "AWS::AccountId" },
+                  ":user/default/",
+                  { "Ref" : "QuickSightUser"}
+                ]
+              ]
+            }
+          }
+        ],
+        "Credentials": {
+          "CredentialPair": {
+            "Username": { "Ref" : "TiDBUser"},
+            "Password": { "Ref" : "TiDBPassword"}
+          }
+        }
+      }
+    },
+    "TiDBDataSet": {
+      "Type" : "AWS::QuickSight::DataSet",
+      "DependsOn": [
+        "TiDBDataSource"
+      ],
+      "Properties" : {
+        "DataSetId" : "TiDBDataSet",
+        "AwsAccountId": { "Ref" : "AWS::AccountId" },
+        "ImportMode" : "DIRECT_QUERY",
+        "Name" : "TiDBDataSet",
+        "Permissions": [
+          {
+            "Actions" : [
+              "quicksight:DescribeDataSet",
+              "quicksight:DescribeDataSetPermissions",
+              "quicksight:PassDataSet",
+              "quicksight:DescribeIngestion",
+              "quicksight:ListIngestions",
+              "quicksight:UpdateDataSet",
+              "quicksight:DeleteDataSet",
+              "quicksight:CreateIngestion",
+              "quicksight:CancelIngestion",
+              "quicksight:UpdateDataSetPermissions"
+            ],
+            "Principal" : {
+              "Fn::Join" : [ "", [
+                  "arn:aws:quicksight:",
+                  { "Ref" : "AWS::Region" },
+                  ":",
+                  { "Ref" : "AWS::AccountId" },
+                  ":user/default/",
+                  { "Ref" : "QuickSightUser"}
+                ]
+              ]
+            }
+          }
+        ],
+        "PhysicalTableMap" : {
+          "FitnessTrackers" : {
+            "RelationalTable": {
+              "DataSourceArn" : {
+                "Fn::GetAtt": ["TiDBDataSource", "Arn"]
+              },
+              "InputColumns" : [
+                { "Name" : "brand_name", "Type" : "STRING"},
+                { "Name" : "device_type", "Type" : "STRING"},
+                { "Name" : "model_name", "Type" : "STRING"},
+                { "Name" : "color", "Type" : "STRING"},
+                { "Name" : "selling_price", "Type" : "STRING"},
+                { "Name" : "original_price", "Type" : "STRING"},
+                { "Name" : "display", "Type" : "STRING"},
+                { "Name" : "rating", "Type" : "DECIMAL"},
+                { "Name" : "strap_material", "Type" : "STRING"},
+                { "Name" : "average_battery_life", "Type" : "INTEGER"},
+                { "Name" : "reviews", "Type" : "STRING"}
+              ],
+              "Name" : "fitness_trackers",
+              "Schema" : "test"
+            }
+          }
+        }
+      }
+    }
+  },
+  "Outputs": {}
+}
