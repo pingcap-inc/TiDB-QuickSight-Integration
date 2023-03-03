@@ -59,7 +59,6 @@ Before you can use this project, you will need the following:
 > Keep the same AWS region to your **TiDB Cloud Serverless Tier Cluster**, **Amazon QuickSight**, and your **AWS CLI default region**.
 
 - Create a [TiDB Cloud](https://tidbcloud.com/) account and get your free trial cluster(Serverless Tier).
-- Create a [TiDB Cloud Private Endpoint](https://docs.pingcap.com/tidbcloud/set-up-private-endpoint-connections), and get the **Endpoint ServiceName**.
 - (Optional) If you never use the **AWS CLI** before, config it by:
 
   ```bash
@@ -67,6 +66,39 @@ Before you can use this project, you will need the following:
   ```
 
 - Import a dataset for analysis. In this document, use Fitness Trackers Products E-commerce for example. You can use [fitness_trackers.sql](/data/fitness_trackers.sql) to create the table in TiDB.
+
+## Get Your Private Endpoint Information
+
+[TiDB Cloud Private Endpoint](https://docs.pingcap.com/tidbcloud/set-up-private-endpoint-connections) will be created in Serverless Tier cluster automatically. So you can get the **Endpoint ServiceName** and **Availability Zone(AZ)** to input to the `1-secret.json`.
+
+> **Note:**
+>
+> TiDB Cloud Serverless Tier will offer to you the **AZ** format like `usw2-az1`. This is the ID of AZ. And the name of **AZ** will [different between all of users](https://docs.aws.amazon.com/ram/latest/userguide/working-with-az-ids.html).
+>
+> ![az mapping](/assets/availability-zone-mapping.png)
+>
+> So you can use the `aws ec2 describe-availability-zones --region <region name>` to get information of AZs. The output will like:
+>
+> ```bash
+> {
+>    "AvailabilityZones": [
+>        {
+>            "State": "available",
+>            "OptInStatus": "opt-in-not-required",
+>            "Messages": [],
+>            "RegionName": "us-west-2",
+>            "ZoneName": "us-west-2a",
+>            "ZoneId": "usw2-az2",
+>            "GroupName": "us-west-2",
+>            "NetworkBorderGroup": "us-west-2",
+>            "ZoneType": "availability-zone"
+>        }
+>        ...
+>      ]
+>  }
+> ```
+>
+> And then, you can get the correspodent relations of zone ID and zone name.
 
 ## 1. Create the VPC (With all components) / PrivateLink / EC2
 
