@@ -1,0 +1,524 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Description": "TiDB Serverless Tier Cluster x Amazon QuickSight",
+  "Parameters": {
+    "TiDBVPCEndpointServiceName": {
+      "Description": "TiDB Cloud VPC Endpoint Service Name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    },
+    "TiDBServerlessAvailabilityZone": {
+      "Description": "TiDB Cloud Serverless Tier Availability Zone (AZ)",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    },
+    "AnotherAvailabilityZone": {
+      "Description": "Another Availability Zone, workaround the restriction of VPC Connection",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    },
+    "TiDBDatabase": {
+      "Description": "TiDB Cloud database name",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "Default": "test"
+    },
+    "TiDBUser": {
+      "NoEcho": "true",
+      "Description": "Username for TiDB Cloud database access",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "32"
+    },
+    "TiDBPassword": {
+      "NoEcho": "true",
+      "Description": "Password for TiDB Cloud database access",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64"
+    },
+    "TiDBHost": {
+      "Description": "Host URL for TiDB Cloud database access",
+      "Default": "localhost",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "256"
+    },
+    "TiDBPort": {
+      "Description": "Port for TiDB Cloud database access",
+      "Default": "4000",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "8",
+      "AllowedPattern": "[0-9]*",
+      "ConstraintDescription": "only allow numbers."
+    },
+    "QuickSightRoleArn": {
+      "Description": "Role ARN of Amazon QuickSight",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "256"
+    },
+    "S3Bucket": {
+      "Description": "S3 Bucket where zip file stores",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "64",
+      "Default": "tidb-lambda-integration-us-west-2"
+    },
+    "S3Key": {
+      "Description": "S3 Key",
+      "Type": "String",
+      "MinLength": "1",
+      "MaxLength": "32",
+      "Default": "bookstore-lambda-index.zip"
+    }
+  },
+  "Resources": {
+    "QuickSightVPC": {
+      "Type": "AWS::EC2::VPC",
+      "Properties": {
+        "CidrBlock": "10.2.0.0/16",
+        "EnableDnsSupport": true,
+        "EnableDnsHostnames": true,
+        "InstanceTenancy": "default",
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-vpc"
+          }
+        ]
+      }
+    },
+    "QuickSightSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "DependsOn": [
+        "QuickSightVPC"
+      ],
+      "Properties" : {
+        "VpcId" : { "Ref" : "QuickSightVPC" },
+        "CidrBlock" : "10.2.0.0/18",
+        "AvailabilityZone" : { "Ref" : "TiDBServerlessAvailabilityZone" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-subnet"
+          }
+        ]
+      }
+    },
+    "WorkaroundSubnet": {
+      "Type" : "AWS::EC2::Subnet",
+      "DependsOn": [
+        "QuickSightVPC"
+      ],
+      "Properties" : {
+        "VpcId" : { "Ref" : "QuickSightVPC" },
+        "CidrBlock" : "10.2.64.0/18",
+        "AvailabilityZone" : { "Ref" : "AnotherAvailabilityZone" },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-subnet"
+          }
+        ]
+      }
+    },
+    "QuickSightPublicRouteTable": {
+      "Type": "AWS::EC2::RouteTable",
+      "Properties": {
+        "VpcId": {
+          "Ref": "QuickSightVPC"
+        },
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-public-route-table"
+          }
+        ]
+      }
+    },
+    "QuickSightPublicRoute": {
+      "Type": "AWS::EC2::Route",
+      "DependsOn": [
+        "QuickSightAttachGateway",
+        "QuickSightPublicRouteTable"
+      ],
+      "Properties": {
+          "DestinationCidrBlock": "0.0.0.0/0",
+          "RouteTableId": {
+              "Ref": "QuickSightPublicRouteTable"
+          },
+          "GatewayId": {
+            "Ref": "QuickSightInternetGateway"
+          }
+      }
+    },
+    "QuickSightSubnetRouteTableAssociation": {
+      "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+      "Properties" : {
+          "RouteTableId" : {
+            "Ref": "QuickSightPublicRouteTable"
+          },
+          "SubnetId" : {
+            "Ref": "QuickSightSubnet"
+          }
+        }
+    },
+    "QuickSightSecurityGroup": {
+      "Type": "AWS::EC2::SecurityGroup",
+      "Properties": {
+          "GroupDescription": "SecurityGroup for QuickSight",
+          "VpcId": {
+              "Ref": "QuickSightVPC"
+          },
+          "SecurityGroupIngress": [
+            {
+              "CidrIp" : "0.0.0.0/0",
+              "Description" : "Allow All IP to SSH",
+              "FromPort" : 0,
+              "IpProtocol" : "tcp",
+              "ToPort" : 65535
+            }
+          ],
+          "Tags": [
+            {
+              "Key": "Name",
+              "Value": "quick-sight-security-group"
+            }
+          ]
+      }
+    },
+    "QuickSightVPCRouteResolverEndpoint": {
+      "Type" : "AWS::Route53Resolver::ResolverEndpoint",
+      "Properties" : {
+          "Direction" : "INBOUND",
+          "IpAddresses" : [
+            {
+            "Ip" : "10.2.1.254",
+            "SubnetId" : {"Ref": "QuickSightSubnet"}
+            },
+            {
+            "Ip" : "10.2.1.255",
+            "SubnetId" : {"Ref": "QuickSightSubnet"}
+            }
+          ],
+          "Name" : "quick-sight-vpc-route-resolver-endpoint",
+          "SecurityGroupIds" : [ {"Ref" : "QuickSightSecurityGroup"} ]
+        }
+    },
+    "QuickSightVPCEndpoint": {
+      "Type" : "AWS::EC2::VPCEndpoint",
+      "Properties" : {
+        "PrivateDnsEnabled": true,
+        "ServiceName" : {"Ref": "TiDBVPCEndpointServiceName"},
+        "SecurityGroupIds": [ {"Ref": "QuickSightSecurityGroup"} ],
+        "SubnetIds" : [ {"Ref": "QuickSightSubnet"} ],
+        "VpcEndpointType" : "Interface",
+        "VpcId" : {"Ref": "QuickSightVPC"}
+      }
+    },
+    "QuickSightInternetGateway" : {
+      "Type" : "AWS::EC2::InternetGateway",
+      "DependsOn": [
+        "QuickSightVPC",
+        "QuickSightSubnet"
+      ],
+      "Properties": {
+        "Tags": [
+          {
+            "Key": "Name",
+            "Value": "quick-sight-internet-gateway"
+          }
+        ]
+      }
+    },
+    "QuickSightAttachGateway" : {
+      "Type" : "AWS::EC2::VPCGatewayAttachment",
+      "DependsOn": [
+        "QuickSightVPC",
+        "QuickSightSubnet",
+        "QuickSightInternetGateway"
+      ],
+      "Properties" : {
+         "VpcId" : { "Ref" : "QuickSightVPC" },
+         "InternetGatewayId" : { "Ref" : "QuickSightInternetGateway" }
+      }
+    },
+    "QuickSightVPCConnection": {
+      "Type" : "AWS::QuickSight::VPCConnection",
+      "DependsOn": [
+        "QuickSightVPC",
+        "QuickSightSubnet",
+        "WorkaroundSubnet",
+        "QuickSightSecurityGroup",
+        "QuickSightVPCRouteResolverEndpoint"
+      ],
+      "Properties" : {
+          "AvailabilityStatus" : "AVAILABLE",
+          "AwsAccountId" : {"Ref": "AWS::AccountId"},
+          "DnsResolvers" : [ "10.2.1.254", "10.2.1.255" ],
+          "Name" : "TiDB-Serverless-Tier-PrivateLink-Connection",
+          "RoleArn" : {"Ref": "QuickSightRoleArn"},
+          "SecurityGroupIds" : [ {"Ref": "QuickSightSecurityGroup"} ],
+          "SubnetIds" : [ {"Ref": "QuickSightSubnet"}, {"Ref": "WorkaroundSubnet"} ],
+          "VPCConnectionId" : "QuickSightVPCConnection-2"
+        }
+    },
+    "QuickSightLambdaIAMRole": {
+      "Type": "AWS::IAM::Role",
+      "Properties": {
+        "RoleName": "QuickSightLambdaVPCRole",
+        "Description": "QuickSightLambdaIAMRole requires AWSLambdaBasicExecutionRole and AWSLambdaVPCAccessExecutionRole",
+        "AssumeRolePolicyDocument": {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Service": "lambda.amazonaws.com"
+              },
+              "Action": "sts:AssumeRole"
+            }
+          ]
+        },
+        "ManagedPolicyArns": [
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole",
+          "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+        ],
+        "Path": "/"
+      }
+    },
+    "QuickSightBookstoreFunction": {
+      "Type": "AWS::Lambda::Function",
+      "Properties": {
+        "Handler": "index.handler",
+        "Role": {
+          "Fn::GetAtt": ["QuickSightLambdaIAMRole", "Arn"]
+        },
+        "Runtime": "nodejs18.x",
+        "FunctionName": "QuickSightBookstoreVPCFunction",
+        "Code": {
+          "S3Bucket": {
+            "Ref": "S3Bucket"
+          },
+          "S3Key": {
+            "Ref": "S3Key"
+          }
+        },
+        "Timeout": 15,
+        "Environment": {
+          "Variables": {
+            "TIDB_PASSWORD": { "Ref": "TiDBPassword" },
+            "DATABASE": { "Ref": "TiDBDatabase" },
+            "TIDB_USER": { "Ref": "TiDBUser" },
+            "TIDB_HOST": { "Ref": "TiDBHost" },
+            "TIDB_PORT": { "Ref": "TiDBPort" }
+          }
+        },
+        "VpcConfig": {
+          "SecurityGroupIds": [{ "Ref": "QuickSightSecurityGroup" }],
+          "SubnetIds": [{ "Ref": "QuickSightSubnet" }]
+        }
+      },
+      "DependsOn": [
+        "QuickSightSecurityGroup",
+        "QuickSightSubnet",
+        "QuickSightVPCRouteResolverEndpoint",
+        "QuickSightLambdaIAMRole"
+      ]
+    },
+    "QuickSightBookstoreHttpApi": {
+      "Type": "AWS::ApiGatewayV2::Api",
+      "Properties": {
+        "Name": "QuickSightBookstoreVPCAPIGatewayV2",
+        "Description": "TiDBCloudApiGatewayV2",
+        "ProtocolType": "HTTP",
+        "CorsConfiguration": {
+          "AllowMethods": ["GET", "POST", "OPTIONS", "PUT", "DELETE"],
+          "AllowOrigins": ["*"]
+        }
+      },
+      "DependsOn": ["QuickSightBookstoreFunction"]
+    },
+    "QuickSightBookstoreLambdaIntegration": {
+      "Type": "AWS::ApiGatewayV2::Integration",
+      "Properties": {
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        },
+        "Description": "Lambda Integration",
+        "IntegrationType": "AWS_PROXY",
+        "IntegrationUri": {
+          "Fn::Join": [
+            "",
+            [
+              "arn:",
+              {
+                "Ref": "AWS::Partition"
+              },
+              ":apigateway:",
+              {
+                "Ref": "AWS::Region"
+              },
+              ":lambda:path/2015-03-31/functions/",
+              {
+                "Fn::GetAtt": ["QuickSightBookstoreFunction", "Arn"]
+              },
+              "/invocations"
+            ]
+          ]
+        },
+        "IntegrationMethod": "POST",
+        "PayloadFormatVersion": "2.0"
+      },
+      "DependsOn": ["QuickSightBookstoreHttpApi"]
+    },
+    "QuickSightBookstoreRouteStatus": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        },
+        "AuthorizationType": "NONE",
+        "RouteKey": "GET /",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "QuickSightBookstoreLambdaIntegration"
+              }
+            ]
+          ]
+        }
+      },
+      "DependsOn": ["QuickSightBookstoreLambdaIntegration"]
+    },
+    "QuickSightBookstoreRouteGetAll": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        },
+        "AuthorizationType": "NONE",
+        "RouteKey": "GET /book",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "QuickSightBookstoreLambdaIntegration"
+              }
+            ]
+          ]
+        }
+      },
+      "DependsOn": ["QuickSightBookstoreLambdaIntegration"]
+    },
+    "QuickSightBookstoreRouteGetBookById": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        },
+        "AuthorizationType": "NONE",
+        "RouteKey": "ANY /book/{id}",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "QuickSightBookstoreLambdaIntegration"
+              }
+            ]
+          ]
+        }
+      },
+      "DependsOn": ["QuickSightBookstoreLambdaIntegration"],
+      "Metadata": {
+        "AWS::CloudFormation::Designer": {
+          "id": "fe6e761b-41ff-488a-902e-96b26b67f47a"
+        }
+      }
+    },
+    "QuickSightBookstoreRouteInit": {
+      "Type": "AWS::ApiGatewayV2::Route",
+      "Properties": {
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        },
+        "AuthorizationType": "NONE",
+        "RouteKey": "POST /book/init",
+        "Target": {
+          "Fn::Join": [
+            "/",
+            [
+              "integrations",
+              {
+                "Ref": "QuickSightBookstoreLambdaIntegration"
+              }
+            ]
+          ]
+        }
+      },
+      "DependsOn": ["QuickSightBookstoreLambdaIntegration"]
+    },
+    "QuickSightBookstoreHttpApiDeployment": {
+      "Type": "AWS::ApiGatewayV2::Deployment",
+      "Properties": {
+        "Description": "My deployment",
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        }
+      },
+      "DependsOn": [
+        "QuickSightBookstoreRouteStatus",
+        "QuickSightBookstoreRouteGetAll",
+        "QuickSightBookstoreRouteGetBookById",
+        "QuickSightBookstoreRouteInit"
+      ]
+    },
+    "QuickSightBookstoreDefaultStage": {
+      "Type": "AWS::ApiGatewayV2::Stage",
+      "DependsOn": ["QuickSightBookstoreHttpApiDeployment"],
+      "Properties": {
+        "StageName": "$default",
+        "AutoDeploy": true,
+        "Description": "QuickSightBookstoreHttpApi Stage",
+        "DeploymentId": {
+          "Ref": "QuickSightBookstoreHttpApiDeployment"
+        },
+        "ApiId": {
+          "Ref": "QuickSightBookstoreHttpApi"
+        }
+      }
+    },
+    "QuickSightBookstoreFunctionInvokePermission": {
+      "Type": "AWS::Lambda::Permission",
+      "Properties": {
+        "Action": "lambda:InvokeFunction",
+        "FunctionName": {
+          "Fn::GetAtt": ["QuickSightBookstoreFunction", "Arn"]
+        },
+        "Principal": "apigateway.amazonaws.com"
+      }
+    }
+  },
+  "Outputs": {
+    "QuickSightVPCConnectionARN": {
+      "Description": "QuickSight VPC Connection ARN string",
+      "Value": {"Fn::GetAtt": ["QuickSightVPCConnection", "Arn"]},
+      "Export" : {
+        "Name" : "QuickSightVPCConnectionARN"
+      }
+    }
+  }
+}
