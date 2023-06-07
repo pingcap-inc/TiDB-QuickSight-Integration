@@ -135,26 +135,24 @@
           }
         ],
         "PhysicalTableMap" : {
-          "FitnessTrackers" : {
+          "Books" : {
             "RelationalTable": {
               "DataSourceArn" : {
                 "Fn::GetAtt": ["TiDBDataSource", "Arn"]
               },
               "InputColumns" : [
-                { "Name" : "brand_name", "Type" : "STRING"},
-                { "Name" : "device_type", "Type" : "STRING"},
-                { "Name" : "model_name", "Type" : "STRING"},
-                { "Name" : "color", "Type" : "STRING"},
-                { "Name" : "selling_price", "Type" : "STRING"},
-                { "Name" : "original_price", "Type" : "STRING"},
-                { "Name" : "display", "Type" : "STRING"},
-                { "Name" : "rating", "Type" : "DECIMAL"},
-                { "Name" : "strap_material", "Type" : "STRING"},
-                { "Name" : "average_battery_life", "Type" : "INTEGER"},
-                { "Name" : "reviews", "Type" : "STRING"}
+                { "Name" : "id", "Type" : "INTEGER"},
+                { "Name" : "title", "Type" : "STRING"},
+                { "Name" : "type", "Type" : "STRING"},
+                { "Name" : "publish_at", "Type" : "DATETIME"},
+                { "Name" : "stock", "Type" : "DECIMAL"},
+                { "Name" : "price", "Type" : "DECIMAL"},
+                { "Name" : "authors", "Type" : "STRING"},
+                { "Name" : "createdAt", "Type" : "DATETIME"},
+                { "Name" : "updatedAt", "Type" : "DATETIME"}
               ],
-              "Name" : "fitness_trackers",
-              "Schema" : "test"
+              "Name" : "books",
+              "Schema" : {"Ref": "TiDBDatabase"}
             }
           }
         }

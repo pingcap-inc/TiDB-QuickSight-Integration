@@ -266,7 +266,7 @@
           "RoleArn" : {"Ref": "QuickSightRoleArn"},
           "SecurityGroupIds" : [ {"Ref": "QuickSightSecurityGroup"} ],
           "SubnetIds" : [ {"Ref": "QuickSightSubnet"}, {"Ref": "WorkaroundSubnet"} ],
-          "VPCConnectionId" : "QuickSightVPCConnection-2"
+          "VPCConnectionId" : "QuickSightVPCConnection"
         }
     },
     "QuickSightLambdaIAMRole": {
