@@ -157,7 +157,45 @@ This step will create an Amazon QuickSight datasource via VPC connection to TiDB
 
 ![quicksight-analysis](/assets/quicksight-analysis.png)
 
-## 5. (Optional) Clean
+## 5. Using Lambda Endpoints
+
+### Init mock books
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{"count":100}' https://<your-api-endpoint>/book/init
+```
+
+### Get all books
+
+```bash
+curl https://<your-api-endpoint>/book
+```
+
+### Get a book by id
+
+```bash
+curl https://<your-api-endpoint>/book/1
+```
+
+### Update a book by id
+
+```bash
+curl -X PUT -H "Content-Type: application/json" -d '{ "title": "Book Title(updated)" }' https://<your-api-endpoint>/book/1
+```
+
+### Post a new book
+
+```bash
+curl -X POST -H "Content-Type: application/json" -d '{ "title": "Book Title", "type": "Test", "publishAt": "2022-12-15T21:01:49.000Z", "stock": 123, "price": 12.34, "authors": "Test Test" }' https://<your-api-endpoint>/book
+```
+
+### Delete a book by id
+
+```bash
+curl -X DELETE https://<your-api-endpoint>/book/1
+```
+
+## 6. (Optional) Clean
 
 - Run the clean script:
 
