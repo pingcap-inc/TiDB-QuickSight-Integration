@@ -64,8 +64,6 @@ Before you can use this project, you will need the following:
   aws configure
   ```
 
-- Import a dataset for analysis. In this document, use Fitness Trackers Products E-commerce for example. You can use [fitness_trackers.sql](/data/fitness_trackers.sql) to create the table in TiDB.
-
 ## Get Your Private Endpoint Information
 
 [TiDB Cloud Private Endpoint](https://docs.pingcap.com/tidbcloud/set-up-private-endpoint-connections) will be created in Serverless Tier cluster automatically. So you can get the **Endpoint ServiceName** and **Availability Zone(AZ)** to input to the `secret.json`.
