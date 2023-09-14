@@ -39,10 +39,10 @@ Before proceeding to create the AWS QuickSight VPC Connection, you'll need to es
 
 ### 1. Locate AZ Name
 
-    1. Log into your AWS Account, and choose the AWS region to be the same as the cluster's region.
-    2. Access [AWS Resource Access Manager](https://console.aws.amazon.com/ram/home?Home:) to find the AZ name for the [previously](#step-1-gather-privatelink-info-in-tidb-serverless) obtained Availability Zone ID, as it will be required in the subsequent action.
+1. Log into your AWS Account, and choose the AWS region to be the same as the cluster's region.
+2. Access [AWS Resource Access Manager](https://console.aws.amazon.com/ram/home?Home:) to find the AZ name for the [previously](#step-1-gather-privatelink-info-in-tidb-serverless) obtained Availability Zone ID, as it will be required in the subsequent action.
 
-    ![AWS Resource Access Manager](/assets/manually/image13.png)
+![AWS Resource Access Manager](/assets/manually/image13.png)
 
 ### 2. Create the VPC
 
