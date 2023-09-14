@@ -4,17 +4,15 @@
 
 This document will show you how to integrate the [TiDB Cloud](https://tidbcloud.com/) Serverless Tier Cluster and [Amazon QuickSight](https://aws.amazon.com/quicksight/) via [AWS PrivateLink](https://aws.amazon.com/privatelink/). In this document, we need to use [AWS Console](https://console.aws.amazon.com/console/home) and [TiDB Cloud Console](https://tidbcloud.com/) to create it step by step.
 
-## Video
+## Solution Overview
 
-[It will add the video for TiDB Serverless Tier & Amazon QuickSight]
+Below is the architecture of a modern BI system using TiDB Cloud, Amazon QuickSight, and Amazon PrivateLink. Data is ingested into TiDB Cloud, prepared, stored, and analyzed in real-time, eliminating the need for ETL. QuickSight effortlessly transforms analysis into user-friendly dashboards, featuring charts and insights for informed decisions. Updates to TiDB Cloud data instantly reflect on QuickSight dashboards, ensuring access to the latest insights in a secure environment.
 
-## Overview
+![manually overview](/assets/manually/image1.png)
 
-> **Note:**
->
-> This is a simple overview. It only has the highest hierarchy component.
+Thanks to the HTAP architecture, TiDB Cloud provides real-time analytics directly on operational data. This is achieved through TiDB features like TiFlash, a real-time columnar storage engine that extends TiKV and uses asynchronous replication for real-time, consistent data without blocking transactional processing. The architecture is designed for scalability, with TiKV and TiFlash on separate storage nodes for complete isolation. TiDB's intelligent optimizer streamlines query execution by selecting the most efficient storage—either row or column—based on workload.
 
-![manually overview](/assets/manually/manually-overview.png)
+![HTAP Architecture of TiDB](/assets/manually/image12.png)
 
 The outline progress is:
 
@@ -71,6 +69,7 @@ Then, click on `Create VPC` and wait for the successful creation.
 Create a new [Security Group](https://console.aws.amazon.com/vpc/home#SecurityGroups:) in this VPC to use later in the **Route Resolver**. This Security Group should allow all inbound TPC traffic. Record the Security Group ID.
 
 ![Security Group inbound rule](/assets/manually/sg-inbound-rule.jpg)
+
 ## 3. Create Route 53 Resolver
 
 Create a [Route 53 Resolver Inbound endpoint](https://console.aws.amazon.com/route53resolver/home#/inbound-endpoints) with the following configurations:
@@ -104,6 +103,7 @@ Create a VPC [Endpoint](https://console.aws.amazon.com/vpc/home#Endpoints:) with
 - `Security groups`: **ONLY** select the Security Group that you just created.
 
 Click on `Create endpoint` and wait for the successful creation.
+
 ## 5. Enable Private DNS for Endpoint
 
 Click on the `Modify private DNS name` button.
@@ -124,6 +124,8 @@ In the [Manage VPC connections](http://quicksight.aws.amazon.com/sn/console/vpc-
 - `DNS resolver endpoints (optional)`: Use the `IP addresses` from the `Route 53 Resolver` that you just created.
 
 Click on `ADD`, and wait for the successful creation and availability.
+
+![add vpc connection](/assets/manually/image14.png)
 
 ## 7. Create a Dataset
 
@@ -153,33 +155,62 @@ Click on `Create data source`.
 
 Next, we can explore the data by clicking on `Use custom SQL`. Let's see how well TiDB Cloud Serverless Tier cluster performs.
 
-Here's a good query to try:
+In this section, we dive into the rich world of TPC-DS queries to examine how TiDB's TiKV and TiFlash components impact query execution times. We'll select a subset of complex analytical queries from the [TPC-DS repository](https://github.com/snithish/tpc-ds_big-query/tree/master/query), to showcase their execution with TiKV alone and then with TiFlash.
 
-```sql
-SELECT dt.d_year, 
-               item.i_brand_id          brand_id, 
-               item.i_brand             brand, 
-               Sum(ss_ext_discount_amt) sum_agg 
-FROM   date_dim dt, 
-       store_sales, 
-       item 
-WHERE  dt.d_date_sk = store_sales.ss_sold_date_sk 
-       AND store_sales.ss_item_sk = item.i_item_sk 
-       AND item.i_manufact_id = 427 
-       AND dt.d_moy = 11 
-GROUP  BY dt.d_year, 
-          item.i_brand, 
-          item.i_brand_id 
-ORDER  BY dt.d_year, 
-          sum_agg DESC, 
-          brand_id
-LIMIT 100;
-```
+Before delving into query performance, we'll guide you through the process of adding TiFlash to the tables of interest. As we dissect each query, you'll witness firsthand the tangible differences in execution times, highlighting how TiFlash can significantly accelerate analytical tasks.
+
+Here is an overview of the analytical queries we'll run on our dataset. At this stage, the TiDB query optimizer will employ the TiKV (OLTP) storage engine to parse, execute, and retrieve the results.
+
+- Multi Year Sales by Category per Quarter
+
+    This [query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query76.sql) provides a comprehensive overview of sales performance based on attributes like year, quarter, and product category. By leveraging this analysis, organizations can identify trends and opportunities to refine marketing, inventory management, and product offerings.
+
+- Identifying Sales Anomalies for Effective Inventory Management
+
+    This [query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query47.sql) delves into historical sales data to identify anomalies in product categories, brands, and stores. By analyzing sales figures from a particular year, it identifies instances where monthly sales significantly deviate from the average. These insights are invaluable for businesses in optimizing their inventory management strategies
+
+- Store Sales by Day of Week
+
+    This [query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query43.sql) analyzes store sales distribution across weekdays and weekends for various stores over a year, revealing customer shopping behavior trends. This data empowers stores to make informed decisions regarding staffing, promotions, and inventory management.
 
 Click on `Confirm query`, and then select `Directly query your data` followed by `Visualize`.
 
 ![dataset-creation-finished](/assets/manually/dataset-creation-finished.jpg)
 
-## 9. Happy exploring
+## 9. Optimizing Query Performance
 
-![QuickSight Explore](/assets/manually/qs-explore.jpg)
+Integrating a TiFlash replica set is a crucial step in optimizing query performance. In TiDB Serverless, achieving this is straightforward through simple DDL statements. These statements allow you to select the tables for which you want the smart query optimizer to deliver speedy results.
+
+```sql
+ALTER TABLE store_sales SET TIFLASH REPLICA 1;
+ALTER TABLE item SET TIFLASH REPLICA 1;
+ALTER TABLE date_dim SET TIFLASH REPLICA 1;
+ALTER TABLE catalog_sales SET TIFLASH REPLICA 1;
+ALTER TABLE web_sales SET TIFLASH REPLICA 1;
+ALTER TABLE web_returns SET TIFLASH REPLICA 1;
+ALTER TABLE catalog_returns SET TIFLASH REPLICA 1;
+ALTER TABLE store_returns SET TIFLASH REPLICA 1;
+ALTER TABLE warehouse SET TIFLASH REPLICA 1;
+ALTER TABLE inventory SET TIFLASH REPLICA 1;
+ALTER TABLE store SET TIFLASH REPLICA 1;
+```
+
+|Query|TiKV(ms)|TiKV + TiFlash(ms)|
+|:-:|:-:|:-:|
+|Multi Year Sales By Category Per Quarter|1729|1119|
+|Identifying Sales Anomalies for Effective Inventory Management|4765|2322|
+|Store Sales by Day of Week|4029|312|
+
+## 10. Create an Analysis
+
+Create an Analysis using the dataset we just created.
+
+After you finish all the steps shown above, you can start to get visual charts, dashboards, and other visualized insights from Quicksight.
+
+![QuickSight Explore](/assets/manually/image15.png)
+
+## Summary
+
+Integrating TiDB Cloud and Amazon Quicksight makes it easier for developers and companies to build a smarter, more efficient, and visualized BI system. Companies can process, store, and analyze their data in one place, which greatly simplifies the data architecture and reduces operation and maintenance costs. Companies can also get the most up-to-date visualized insights based on freshly generated business data. This helps them quickly make decisions and respond to changes.
+
+If you’re interested in this integration, you are welcome to sign in to (or sign up for) your [TiDB Cloud](https://tidbcloud.com/signup) and [AWS QuickSight](https://aws.amazon.com/quicksight/) accounts and give them a try. If you have any questions, feel free to contact us through [Twitter](https://twitter.com/PingCAP), [LinkedIn](https://www.linkedin.com/company/pingcap/mycompany/), or our [Slack Channel](https://slack.tidb.io/invite?team=tidb-community&channel=everyone&ref=pingcap).
