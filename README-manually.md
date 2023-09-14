@@ -1,161 +1,126 @@
-# Amazon QuickSight Connect to TiDB Cloud via AWS PrivateLink
+# Integrate TiDB Cloud with AWS QuickSight
 
-<div align="right" style="color: gray"> —— Pure Console UI Version </div>
+TiDB Cloud a fully-managed DBaaS offering of [TiDB](https://www.pingcap.com/tidb/), an advanced, open-source, distributed SQL database that features Hybrid Transactional and Analytical Processing (HTAP) capabilities. It enables businesses to process and analyze large amounts of data from the same source of truth reliably and cost-effectively, without using any ETL tools. [Amazon QuickSight](https://aws.amazon.com/quicksight/) is a cloud-based BI platform that allows businesses to create interactive dashboards, visualizations, and analyze data in real-time.
 
-This document will show you how to integrate the [TiDB Cloud](https://tidbcloud.com/) Serverless Tier Cluster and [Amazon QuickSight](https://aws.amazon.com/quicksight/) via [AWS PrivateLink](https://aws.amazon.com/privatelink/). In this document, we need to use [AWS Console](https://console.aws.amazon.com/console/home) and [TiDB Cloud Console](https://tidbcloud.com/) to create it step by step.
+In this guide, we will guide you through how to integrate TiDB Cloud's Serverless offering with Amazon QuickSight via AWS Private Link. We will also demonstrate the potential of this pairing for a faster visual analysis utilizing the [TPC-DS](https://www.tpc.org/tpcds/default5.asp) dataset.
 
-## Solution Overview
+![stack](/assets/manually/image5.png)
 
-Below is the architecture of a modern BI system using TiDB Cloud, Amazon QuickSight, and Amazon PrivateLink. Data is ingested into TiDB Cloud, prepared, stored, and analyzed in real-time, eliminating the need for ETL. QuickSight effortlessly transforms analysis into user-friendly dashboards, featuring charts and insights for informed decisions. Updates to TiDB Cloud data instantly reflect on QuickSight dashboards, ensuring access to the latest insights in a secure environment.
+## Prerequisites and Assumptions
 
-![manually overview](/assets/manually/image1.png)
+Before getting started, please complete the following prerequisites:
 
-Thanks to the HTAP architecture, TiDB Cloud provides real-time analytics directly on operational data. This is achieved through TiDB features like TiFlash, a real-time columnar storage engine that extends TiKV and uses asynchronous replication for real-time, consistent data without blocking transactional processing. The architecture is designed for scalability, with TiKV and TiFlash on separate storage nodes for complete isolation. TiDB's intelligent optimizer streamlines query execution by selecting the most efficient storage—either row or column—based on workload.
+- [Create a TiDB Cloud’s Serverless cluster](https://tidbcloud.com/signup), as we’ll be using TiDB Cloud to store TPC-DS dataset.
+- [Create an AWS account](https://aws.amazon.com/), as we’ll be using various services such as Amazon  QuickSight, VPC Endpoint and Route53.
+- [Create an Amazon QuickSight Enterprise Edition account](https://repost.aws/knowledge-center/quicksight-enterprise-account), only QuickSight Enterprise Edition fully integrates with Amazon VPC service.
 
-![HTAP Architecture of TiDB](/assets/manually/image12.png)
+## Step 1: Gather PrivateLink Info in TiDB Serverless
 
-The outline progress is:
+When you create your TiDB Serverless cluster, PrivateLink is automatically generated. You can follow the steps to get the information of the cluster.
 
-1. Create a [TiDB Cloud](https://tidbcloud.com/) Serverless Tier cluster.
-2. Create a dedicated **VPC** and related components to contain all of your network. You can use `VPC and more` to speed up your creation.
-3. Create an **Endpoint** in this VPC to link to TiDB Serverless Tier's **Endpoint Server**.
-4. (Amazon QuickSight Enterprise Edition account required) Create a **VPC Connection** on the Amazon QuickSight management page.
-5. Explore the dataset through TiDB and Amazon QuickSight!
+1. Navigate to the [clusters page](https://tidbcloud.com/console/clusters/) within TiDB Cloud, and select the desired cluster by clicking on its name.
+2. At the top-right corner of the page, click the “**Connect**” button.
+3. In the connect window, choose “**Private**” from the “**Endpoint Type**” dropdown menu and select “**General**” under “**Connect With**”.
+4. Take note of the Private Endpoint configuration values: **Service Name**, **Availability Zone ID**, and **Region ID**. Also, record the cluster connection parameters including **host**, **port**, **user**, and **password**.
 
-## Prerequisites
+![tidb connect panel](/assets/manually/image15.png)
 
-Before you can use this project, you will need the following:
+## Step 2. Import tpc-ds dataset
 
-- A [TiDB Cloud](https://tidbcloud.com/) Account
-- An Amazon QuickSight Account of Enterprise Edition. The VPC feature is [for Enterprise Edition only](https://docs.aws.amazon.com/quicksight/latest/user/working-with-aws-vpc.html).
+Once you have the PrivateLink information, you can begin importing the TPC-DS dataset into TiDB Cloud for storage and analytics using the following steps,
 
-## Before you begin
+1. [Download](https://tidb-immersion-day.s3.amazonaws.com/tpc-ds.zip) and extract the TPC-DS dataset folder, containing SQL files to create databases, tables, and insert sample data.
+2. Sign in to your AWS Account, create a S3 bucket, and upload the TPC-DS SQL files.
+3. Follow these [instructions](https://docs.pingcap.com/tidbcloud/import-csv-files#step-4-import-csv-files-to-tidb-cloud) to create the tables and import the dataset into TiDB Cloud.
 
-> **Note:**
->
-> Keep the same AWS region for your **TiDB Cloud Serverless Tier Cluster** and **Amazon QuickSight**.
+## Step 3. Establish private connectivity between QuickSight and TiDB Serverless
 
-- Create a [TiDB Cloud](https://tidbcloud.com/) account and get your free trial cluster (Serverless Tier).
-- Import a dataset for analysis. In this document, we will use [TPC-DS](https://www.tpc.org/tpc_documents_current_versions/current_specifications5.asp) as an example.
+Before proceeding to create the AWS QuickSight VPC Connection, you'll need to establish the VPC and its associated components to prepare your network appropriately.
 
-## Get Your Private Endpoint Information
+1. Locate AZ Name
 
-The [TiDB Cloud Private Endpoint](https://docs.pingcap.com/tidbcloud/set-up-private-endpoint-connections) will be automatically created in the Serverless Tier cluster. You can obtain the **Service Name**, **Availability Zone ID (AZ ID)**, and **Region ID**. Please record this information for later use. To learn more, you can read the [private endpoint document](https://docs.pingcap.com/tidbcloud/set-up-private-endpoint-connections#set-up-a-private-endpoint-with-aws) of TiDB Cloud.
+    1. Log into your AWS Account, and choose the AWS region to be the same as the cluster's region.
+    2. Access [AWS Resource Access Manager](https://console.aws.amazon.com/ram/home?Home:) to find the AZ name for the [previously](#step-1-gather-privatelink-info-in-tidb-serverless) obtained Availability Zone ID, as it will be required in the subsequent action.
 
-![TiDB Private Endpoint Information](/assets/manually/tidb-private-endpoint-info.jpg)
+    ![AWS Resource Access Manager](/assets/manually/image13.png)
 
-> **Note:**
->
-> TiDB Cloud Serverless Tier will offer you the **AZ ID** format like `usw2-az1`. That's because the name of the **AZ** will [differ between all users](https://docs.aws.amazon.com/ram/latest/userguide/working-with-az-ids.html).
->
-> ![AZ mapping](/assets/availability-zone-mapping.png)
->
-> So, you can enter the homepage of [AWS Resource Access Manager](https://console.aws.amazon.com/ram/home#Home:). Then, you can get the corresponding relations between your AZ names and AZ IDs.
-> ![AZ ID and AZ name correspondence](/assets/manually/azid-azname-correspond.jpg)
+2. Create the VPC
 
-## 1. Create the VPC (With majority components)
+    1. In the VPC Service section, navigate to **Create VPC page > VPC settings > VPC and more**.
+    2. Provide a name tag for auto-generation (for example qs-tidb-serverless), and leave the default values for IPv4 CIDR block, IPv6 CIDR block.
 
-You can add the VPC and majority components in the `Create VPC` step, by selecting the `VPC and more` option in the `Resources to create` section. Here are the configurations that you need to change or fill in:
+        1. Configure the **Customize AZs** section as below:
+        1. First availability zone: the one obtained earlier
+        1. Second availability zone: default
+        1. Number for private subnets: 0
+        1. VPC endpoints: None
+        1. Click “**Create VPC**”.
 
-- `Resources to create`: Select `VPC and more`.
-- `Name tag auto-generation`: Provide a meaningful name for your VPC.
-- `Customize AZs`: Check if the AZ name of your TiDB Serverless Tier cluster is in those two `Customize AZs`.
-- `Number of private subnets`: `0`.
+    *Make a note of the VPC ID generated for future reference.*
 
-Then, click on `Create VPC` and wait for the successful creation.
+    ![VPC](/assets/manually/image2.png)
 
-## 2. Create Security Group
+3. Create a security group
 
-Create a new [Security Group](https://console.aws.amazon.com/vpc/home#SecurityGroups:) in this VPC to use later in the **Route Resolver**. This Security Group should allow all inbound TPC traffic. Record the Security Group ID.
+    1. nder the Network & Security section, navigate to EC2 > Security Groups > Create security group.
+    1. Configure the security group as shown below:
 
-![Security Group inbound rule](/assets/manually/sg-inbound-rule.jpg)
+        - Enter a name for your security group (for example qs-tidb-serverless-sg) and a description.
+        - For VPC, choose the VPC ID obtained in the previous step.
+        - Add an inbound rule by choosing **Add rule** in the inbound rules. This will allow traffic from within your VPC to the VPC endpoint.
+        - Choose Custom TCP for the type.
+        - Enter 0 - 65535 for Port range.
+        - Choose Anywhere-IPV4 as Source.
 
-## 3. Create Route 53 Resolver
+        ![security group](/assets/manually/image7.png)
 
-Create a [Route 53 Resolver Inbound endpoint](https://console.aws.amazon.com/route53resolver/home#/inbound-endpoints) with the following configurations:
+    1. Choose Create security group.
 
-- `Endpoint name`: Provide a meaningful name for your Route 53 Resolver Inbound endpoint.
-- `VPC in the Region: xx-xxxx-x (xxxxxx)`: Select the VPC that you just created. Make sure the region matches the region where you created the VPC.
-- `Security group for this endpoint`: Select the Security Group that you just created.
-- `Endpoint Type`: Select `IPv4`.
-- `IP address #1/#2`: Choose the same Availability Zone where your TiDB Cloud Serverless Tier is located. Since you have only one subnet, select it.
+    *Note down the security group ID.*
 
-Click on `Create inbound endpoint` and wait for the successful creation.
+4. Configure a Route 53 resolver inbound endpoint for your VPC
 
-Next, click on the ID of your inbound endpoint and record the `IP addresses`.
+    1. On the Route 53 resolver console, choose **Inbound only** in the navigation pane, and configure the endpoint as described below:
 
-![Inbound endpoint IP addresses](/assets/manually/inbound-ips.jpg)
+        - Enter a name (for example, qs-tidb-serverless-resolver-endpoint) for the endpoint.
+        - For VPC in the Region, choose the VPC ID obtained in previous steps.
+        - For the security group for the endpoint, choose the Security group ID you saved earlier.
+        - Choose IPv4 for Endpoint Type.
+        - For IP address #1 & #2 choose the availability zones that you had chosen while creating the VPC.
 
-## 4. Create Endpoint
+        ![Route 53 resolver](/assets/manually/image11.png)
 
-Create a VPC [Endpoint](https://console.aws.amazon.com/vpc/home#Endpoints:) with the following configurations:
+    1. Click Next, review the details and click Submit,
+    1. Note down the IP addresses created at the end of the Route 53 Resolver Inbound endpoint creation process as we will be using them when connecting the VPC to QuickSight.
 
-- `Name tag`: Provide a meaningful name for your VPC Endpoint.
-- `Service category`: Select the `Other endpoint services` option.
-- `Service name`: You can obtain this service name from the TiDB Cloud Console UI. Refer to the [Get Your Private Endpoint Information](#get-your-private-endpoint-information) section for instructions on how to obtain the service name.
+5. Create VPC Endpoints
 
-    Click on `Verify service`. It should show `Service name verified`.
+    1. In the **VPC Service** section, navigate to **Endpoints > Create endpoint**, and configure the end point as described below:
+        - Choose **Other endpoint services** as the service category.
+        - Enter the service name acquired in Step 1, which typically starts with “com.amazonaws.vpce”. Click **Verify service** to verify the service name.
 
-    ![Service name verification](/assets/manually/service-name-verify.jpg)
+            ![create endpoint](/assets/manually/image1.png)
 
-- `VPC`: Select the VPC that you just created.
-- `Subnets`: Since there is only one AZ and subnet to choose from, select them.
-- `Security groups`: **ONLY** select the Security Group that you just created.
+        - Choose the **VPC ID** previously created.
+        - **Enable DNS name** available under Additional settings.
+        - Choose the **Availability Zone** and select the subnet that was created previously.
+        - Choose the **Security group ID** previously created.
 
-Click on `Create endpoint` and wait for the successful creation.
+    1. Click **Create Endpoint** and wait for a few minutes for the endpoint to be available.
 
-## 5. Enable Private DNS for Endpoint
+        ![endpoint available](/assets/manually/image6.png)
 
-Click on the `Modify private DNS name` button.
+6. Add a VPC Connection to QuickSight
 
-![Enable Private DNS for Endpoint](/assets/manually/enable-private-dns-for-enpoint.jpg)
+    1. Log into the Amazon QuickSight Enterprise edition, and navigate to **Manage QuickSight**. Note that you must be a QuickSight administrator to access this page.
+    1. In the left navigation pane, navigate to **Manage VPC connections > Add VPC connection**.
+    1. Configure the VPC connection as shown below, and click **ADD** to finish adding the VPC connection.
 
-Check the `Enable for this endpoint` option and click `Save changes`.
+    ![vpc connection](/assets/manually/image12.png)
 
-## 6. Add VPC Connection in Amazon QuickSight
+## Step 4 : Exploring TPC-DS dataset & performance
 
-In the [Manage VPC connections](http://quicksight.aws.amazon.com/sn/console/vpc-connections?#) page, click on `ADD VPC CONNECTION` to create a VPC connection with the following configurations:
-
-- `VPC connection name`: Provide a meaningful name for your VPC connection.
-- `VPC ID`: Select the VPC ID that you just created.
-- `Execution role`: Amazon QuickSight has already created two roles for you by default. If you believe that the permissions of those roles are not sufficient, you can go to the [IAM](https://console.aws.amazon.com/iamv2/home#/roles) page to grant them additional permissions.
-- `Subnets (Select at least two)`: In each AZ, there is only one `Subnet ID` to choose from, so select it.
-- `Security Group IDs`: **ONLY** select the Security Group that you just created.
-- `DNS resolver endpoints (optional)`: Use the `IP addresses` from the `Route 53 Resolver` that you just created.
-
-Click on `ADD`, and wait for the successful creation and availability.
-
-![add vpc connection](/assets/manually/image14.png)
-
-## 7. Create a Dataset
-
-In the [Create a DataSet](https://us-west-2.quicksight.aws.amazon.com/sn/data-sets/new) page, click on `MySQL`. This is because TiDB is highly compatible with the MySQL 5.7 protocol, and the common features and syntax of MySQL 5.7 can be used for TiDB. The ecosystem tools for MySQL 5.7 and the MySQL client can also be used for TiDB.
-
-![MySQL Data Source](/assets/manually/qs-mysql-data-source.jpg)
-
-Configure the following settings:
-
-- `Data source name`: Provide a meaningful name for your data source.
-- `Connection type`: Select the VPC Connection that you just created.
-- `Database server`/`Port`/`Username`: You can find these details in the TiDB Cloud Console.
-
-    ![TiDB Private Endpoint Base Info](/assets/manually/tidb-private-endpoint-base-info.jpg)
-
-- `Database name`: Enter the name of your TPC-DS database in the TiDB Serverless Tier cluster. Alternatively, you can enter any database name you want to explore in your TiDB Serverless Tier cluster.
-- `Password`: Enter the password you set in TiDB Cloud.
-- `Enable SSL`: Uncheck the `Enable SSL` option.
-
-Click on `Validate connection`. It should show `Validated`.
-
-![Data source verification](/assets/manually/datasource-verify.jpg)
-
-Click on `Create data source`.
-
-## 8. Explore via Complex Query
-
-Next, we can explore the data by clicking on `Use custom SQL`. Let's see how well TiDB Cloud Serverless Tier cluster performs.
-
-In this section, we dive into the rich world of TPC-DS queries to examine how TiDB's TiKV and TiFlash components impact query execution times. We'll select a subset of complex analytical queries from the [TPC-DS repository](https://github.com/snithish/tpc-ds_big-query/tree/master/query), to showcase their execution with TiKV alone and then with TiFlash.
+In this section, we dive into the rich world of TPC-DS queries to examine how TiDB's TiKV and TiFlash components impact query execution times. We'll select a subset of complex analytical queries from the [TPC-DS repository](https://github.com/snithish/tpc-ds_big-query/tree/master/query), typically about five queries, to showcase their execution with TiKV alone and then with TiFlash.
 
 Before delving into query performance, we'll guide you through the process of adding TiFlash to the tables of interest. As we dissect each query, you'll witness firsthand the tangible differences in execution times, highlighting how TiFlash can significantly accelerate analytical tasks.
 
@@ -172,12 +137,6 @@ Here is an overview of the analytical queries we'll run on our dataset. At this 
 - Store Sales by Day of Week
 
     This [query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query43.sql) analyzes store sales distribution across weekdays and weekends for various stores over a year, revealing customer shopping behavior trends. This data empowers stores to make informed decisions regarding staffing, promotions, and inventory management.
-
-Click on `Confirm query`, and then select `Directly query your data` followed by `Visualize`.
-
-![dataset-creation-finished](/assets/manually/dataset-creation-finished.jpg)
-
-## 9. Optimizing Query Performance
 
 Integrating a TiFlash replica set is a crucial step in optimizing query performance. In TiDB Serverless, achieving this is straightforward through simple DDL statements. These statements allow you to select the tables for which you want the smart query optimizer to deliver speedy results.
 
@@ -201,16 +160,26 @@ ALTER TABLE store SET TIFLASH REPLICA 1;
 |Identifying Sales Anomalies for Effective Inventory Management|4765|2322|
 |Store Sales by Day of Week|4029|312|
 
-## 10. Create an Analysis
+As illustrated in the table above, enabling TiFlash resulted in a significant average performance gain of approximately 5 times (5x) across all the queries. Remarkably, this improvement remains consistent even during concurrent data ingestion.
 
-Create an Analysis using the dataset we just created.
+## Step 5: Create QuickSight Dataset
 
-After you finish all the steps shown above, you can start to get visual charts, dashboards, and other visualized insights from Quicksight.
+In this section, we will establish a connection between QuickSight and TiDB Serverless using the information gathered from the previous steps. Once the connection is established, we will use the “[Store Sales by Day of Week query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query43.sql)” as an example to create a dataset. Please note that the steps for creating datasets for the other queries are similar and can be repeated as needed.
 
-![QuickSight Explore](/assets/manually/image15.png)
+1. In the Amazon QuickSight portal, enter the **Create a Dataset** page and select **MySQL** as the data source.
+1. Fill out all the connection information gathered from [Step 1](#step-1-gather-privatelink-info-in-tidb-serverless).
 
-## Summary
+    Click **Validate** to test the connection. Then, click the **Create data source**.
 
-Integrating TiDB Cloud and Amazon Quicksight makes it easier for developers and companies to build a smarter, more efficient, and visualized BI system. Companies can process, store, and analyze their data in one place, which greatly simplifies the data architecture and reduces operation and maintenance costs. Companies can also get the most up-to-date visualized insights based on freshly generated business data. This helps them quickly make decisions and respond to changes.
+    ![data source validate](/assets/manually/image14.png)
 
-If you’re interested in this integration, you are welcome to sign in to (or sign up for) your [TiDB Cloud](https://tidbcloud.com/signup) and [AWS QuickSight](https://aws.amazon.com/quicksight/) accounts and give them a try. If you have any questions, feel free to contact us through [Twitter](https://twitter.com/PingCAP), [LinkedIn](https://www.linkedin.com/company/pingcap/mycompany/), or our [Slack Channel](https://slack.tidb.io/invite?team=tidb-community&channel=everyone&ref=pingcap).
+1. Click **Use custom SQL** to add the TPC-DS query.
+
+    ![Use custom SQL](/assets/manually/image10.png)
+
+1. In the pop-up box, add the “[Store Sales by Day of Week query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query43.sql)” and click **Confirm query**.
+1. Create an Analysis using the dataset we just created.
+
+After you finish all the steps shown above, you can start to get visual charts, dashboards, and other visualized insights from Quicksight. For example,
+
+![result](/assets/manually/image4.png)
