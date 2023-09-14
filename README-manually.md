@@ -37,86 +37,86 @@ Once you have the PrivateLink information, you can begin importing the TPC-DS da
 
 Before proceeding to create the AWS QuickSight VPC Connection, you'll need to establish the VPC and its associated components to prepare your network appropriately.
 
-1. Locate AZ Name
+### 1. Locate AZ Name
 
     1. Log into your AWS Account, and choose the AWS region to be the same as the cluster's region.
     2. Access [AWS Resource Access Manager](https://console.aws.amazon.com/ram/home?Home:) to find the AZ name for the [previously](#step-1-gather-privatelink-info-in-tidb-serverless) obtained Availability Zone ID, as it will be required in the subsequent action.
 
     ![AWS Resource Access Manager](/assets/manually/image13.png)
 
-2. Create the VPC
+### 2. Create the VPC
 
-    1. In the VPC Service section, navigate to **Create VPC page > VPC settings > VPC and more**.
-    2. Provide a name tag for auto-generation (for example qs-tidb-serverless), and leave the default values for IPv4 CIDR block, IPv6 CIDR block.
+1. In the VPC Service section, navigate to **Create VPC page > VPC settings > VPC and more**.
+2. Provide a name tag for auto-generation (for example qs-tidb-serverless), and leave the default values for IPv4 CIDR block, IPv6 CIDR block.
 
-        1. Configure the **Customize AZs** section as below:
-        1. First availability zone: the one obtained earlier
-        1. Second availability zone: default
-        1. Number for private subnets: 0
-        1. VPC endpoints: None
-        1. Click “**Create VPC**”.
+    1. Configure the **Customize AZs** section as below:
+    1. First availability zone: the one obtained earlier
+    1. Second availability zone: default
+    1. Number for private subnets: 0
+    1. VPC endpoints: None
+    1. Click “**Create VPC**”.
 
-    *Make a note of the VPC ID generated for future reference.*
+*Make a note of the VPC ID generated for future reference.*
 
-    ![VPC](/assets/manually/image2.png)
+![VPC](/assets/manually/image2.png)
 
-3. Create a security group
+### 3. Create a security group
 
-    1. nder the Network & Security section, navigate to EC2 > Security Groups > Create security group.
-    1. Configure the security group as shown below:
+1. nder the Network & Security section, navigate to EC2 > Security Groups > Create security group.
+1. Configure the security group as shown below:
 
-        - Enter a name for your security group (for example qs-tidb-serverless-sg) and a description.
-        - For VPC, choose the VPC ID obtained in the previous step.
-        - Add an inbound rule by choosing **Add rule** in the inbound rules. This will allow traffic from within your VPC to the VPC endpoint.
-        - Choose Custom TCP for the type.
-        - Enter 0 - 65535 for Port range.
-        - Choose Anywhere-IPV4 as Source.
+    - Enter a name for your security group (for example qs-tidb-serverless-sg) and a description.
+    - For VPC, choose the VPC ID obtained in the previous step.
+    - Add an inbound rule by choosing **Add rule** in the inbound rules. This will allow traffic from within your VPC to the VPC endpoint.
+    - Choose Custom TCP for the type.
+    - Enter 0 - 65535 for Port range.
+    - Choose Anywhere-IPV4 as Source.
 
-        ![security group](/assets/manually/image7.png)
+    ![security group](/assets/manually/image7.png)
 
-    1. Choose Create security group.
+1. Choose Create security group.
 
-    *Note down the security group ID.*
+*Note down the security group ID.*
 
-4. Configure a Route 53 resolver inbound endpoint for your VPC
+### 4. Configure a Route 53 resolver inbound endpoint for your VPC
 
-    1. On the Route 53 resolver console, choose **Inbound only** in the navigation pane, and configure the endpoint as described below:
+1. On the Route 53 resolver console, choose **Inbound only** in the navigation pane, and configure the endpoint as described below:
 
-        - Enter a name (for example, qs-tidb-serverless-resolver-endpoint) for the endpoint.
-        - For VPC in the Region, choose the VPC ID obtained in previous steps.
-        - For the security group for the endpoint, choose the Security group ID you saved earlier.
-        - Choose IPv4 for Endpoint Type.
-        - For IP address #1 & #2 choose the availability zones that you had chosen while creating the VPC.
+    - Enter a name (for example, qs-tidb-serverless-resolver-endpoint) for the endpoint.
+    - For VPC in the Region, choose the VPC ID obtained in previous steps.
+    - For the security group for the endpoint, choose the Security group ID you saved earlier.
+    - Choose IPv4 for Endpoint Type.
+    - For IP address #1 & #2 choose the availability zones that you had chosen while creating the VPC.
 
-        ![Route 53 resolver](/assets/manually/image11.png)
+    ![Route 53 resolver](/assets/manually/image11.png)
 
-    1. Click Next, review the details and click Submit,
-    1. Note down the IP addresses created at the end of the Route 53 Resolver Inbound endpoint creation process as we will be using them when connecting the VPC to QuickSight.
+1. Click Next, review the details and click Submit,
+1. Note down the IP addresses created at the end of the Route 53 Resolver Inbound endpoint creation process as we will be using them when connecting the VPC to QuickSight.
 
-5. Create VPC Endpoints
+### 5. Create VPC Endpoints
 
-    1. In the **VPC Service** section, navigate to **Endpoints > Create endpoint**, and configure the end point as described below:
-        - Choose **Other endpoint services** as the service category.
-        - Enter the service name acquired in Step 1, which typically starts with “com.amazonaws.vpce”. Click **Verify service** to verify the service name.
+1. In the **VPC Service** section, navigate to **Endpoints > Create endpoint**, and configure the end point as described below:
+    - Choose **Other endpoint services** as the service category.
+    - Enter the service name acquired in Step 1, which typically starts with “com.amazonaws.vpce”. Click **Verify service** to verify the service name.
 
-            ![create endpoint](/assets/manually/image1.png)
+        ![create endpoint](/assets/manually/image1.png)
 
-        - Choose the **VPC ID** previously created.
-        - **Enable DNS name** available under Additional settings.
-        - Choose the **Availability Zone** and select the subnet that was created previously.
-        - Choose the **Security group ID** previously created.
+    - Choose the **VPC ID** previously created.
+    - **Enable DNS name** available under Additional settings.
+    - Choose the **Availability Zone** and select the subnet that was created previously.
+    - Choose the **Security group ID** previously created.
 
-    1. Click **Create Endpoint** and wait for a few minutes for the endpoint to be available.
+1. Click **Create Endpoint** and wait for a few minutes for the endpoint to be available.
 
-        ![endpoint available](/assets/manually/image6.png)
+    ![endpoint available](/assets/manually/image6.png)
 
-6. Add a VPC Connection to QuickSight
+### 6. Add a VPC Connection to QuickSight
 
-    1. Log into the Amazon QuickSight Enterprise edition, and navigate to **Manage QuickSight**. Note that you must be a QuickSight administrator to access this page.
-    1. In the left navigation pane, navigate to **Manage VPC connections > Add VPC connection**.
-    1. Configure the VPC connection as shown below, and click **ADD** to finish adding the VPC connection.
+1. Log into the Amazon QuickSight Enterprise edition, and navigate to **Manage QuickSight**. Note that you must be a QuickSight administrator to access this page.
+1. In the left navigation pane, navigate to **Manage VPC connections > Add VPC connection**.
+1. Configure the VPC connection as shown below, and click **ADD** to finish adding the VPC connection.
 
-    ![vpc connection](/assets/manually/image12.png)
+![vpc connection](/assets/manually/image12.png)
 
 ## Step 4 : Exploring TPC-DS dataset & performance
 
