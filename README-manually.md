@@ -178,8 +178,12 @@ In this section, we will establish a connection between QuickSight and TiDB Serv
     ![Use custom SQL](/assets/manually/image10.png)
 
 1. In the pop-up box, add the “[Store Sales by Day of Week query](https://github.com/snithish/tpc-ds_big-query/blob/master/query/query43.sql)” and click **Confirm query**.
-1. Create an Analysis using the dataset we just created.
+1. Click **Visualize** to create an Analysis using the dataset we just created.
+
+    ![Visualize](/assets/manually/visualize.png)
 
 After you finish all the steps shown above, you can start to get visual charts, dashboards, and other visualized insights from Quicksight. For example,
 
 ![result](/assets/manually/image4.png)
+
+When using Amazon QuickSight, if you encounter any issues or seek additional information, please consult the [Amazon QuickSight documentation](https://docs.aws.amazon.com/quicksight/).
