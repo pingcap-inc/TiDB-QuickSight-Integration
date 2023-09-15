@@ -62,7 +62,7 @@ Before proceeding to create the AWS QuickSight VPC Connection, you'll need to es
 
 ### 3. Create a security group
 
-1. nder the Network & Security section, navigate to EC2 > Security Groups > Create security group.
+1. Under the Network & Security section, navigate to EC2 > Security Groups > Create security group.
 1. Configure the security group as shown below:
 
     - Enter a name for your security group (for example qs-tidb-serverless-sg) and a description.
