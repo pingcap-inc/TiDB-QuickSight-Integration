@@ -140,6 +140,8 @@ Here is an overview of the analytical queries we'll run on our dataset. At this 
 
 Integrating a TiFlash replica set is a crucial step in optimizing query performance. In TiDB Serverless, achieving this is straightforward through simple DDL statements. These statements allow you to select the tables for which you want the smart query optimizer to deliver speedy results.
 
+### Add TiFlash Replica SQL
+
 ```sql
 ALTER TABLE store_sales SET TIFLASH REPLICA 1;
 ALTER TABLE item SET TIFLASH REPLICA 1;
@@ -153,6 +155,8 @@ ALTER TABLE warehouse SET TIFLASH REPLICA 1;
 ALTER TABLE inventory SET TIFLASH REPLICA 1;
 ALTER TABLE store SET TIFLASH REPLICA 1;
 ```
+
+### TiFlash vs. TiKV
 
 |Query|TiKV(ms)|TiKV + TiFlash(ms)|
 |:-:|:-:|:-:|
